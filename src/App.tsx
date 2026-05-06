@@ -28,13 +28,11 @@ export default function App() {
   const [editorInstance, setEditorInstance] = useState<Editor | null>(null)
   const [currentText, setCurrentText]   = useState('')
 
-  // 設定を localStorage に同期
   useEffect(() => {
     localStorage.setItem('diary_api_url', settings.apiUrl)
     localStorage.setItem('diary_settings', JSON.stringify(settings))
   }, [settings])
 
-  // モード切替時にデータ再取得
   useEffect(() => { loadData() }, [mode])
 
   async function loadData() {
@@ -70,24 +68,21 @@ export default function App() {
     setEditorInstance(editor)
   }, [])
 
-  // Tiptap のテキストをエージェントへ渡す
+  // Tiptap のテキストをエージェントへ渡す（← ここを修正）
   useEffect(() => {
     if (!editorInstance) return
     const update = () => setCurrentText(editorInstance.getText())
     editorInstance.on('update', update)
-    return () => editorInstance.off('update', update)
+    return () => { editorInstance.off('update', update) }
   }, [editorInstance])
 
-  // ── タグ承認ハンドラ ─────────────────────────────────
   const handleTagAccept = useCallback(async (tagName: string) => {
     try {
-      // タグが未存在なら作成
       let tag = tags.find(t => t.name === tagName)
       if (!tag) {
         tag = await createTag(tagName)
         setTags(prev => [...prev, tag!])
       }
-      // 現在のエントリにタグを追加
       if (selectedId) {
         const entry = entries.find(e => e.id === selectedId)
         if (entry) {
@@ -118,7 +113,6 @@ export default function App() {
         onModeChange={handleModeChange}
         onSettingsOpen={() => setShowSettings(true)}
       />
-
       <EditorPane
         entry={selectedEntry}
         isNew={isNew}
@@ -127,7 +121,6 @@ export default function App() {
         onSaved={handleSaved}
         onEditorReady={handleEditorReady}
       />
-
       <AgentPane
         currentEntryText={currentText}
         currentEntryId={selectedId}
@@ -138,7 +131,6 @@ export default function App() {
         autoCommentDelay={settings.autoCommentDelay}
         onTagAccept={handleTagAccept}
       />
-
       <CommandPalette
         editor={editorInstance}
         mode={mode}
@@ -146,7 +138,6 @@ export default function App() {
         onModeChange={handleModeChange}
         onOpenSettings={() => setShowSettings(true)}
       />
-
       {showSettings && (
         <SettingsModal
           settings={settings}
