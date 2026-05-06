@@ -1,0 +1,208 @@
+/* ── Tiptap エディタ本体のスタイル ── */
+
+.tiptap-editor {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 24px 48px;
+}
+
+.tiptap-editor:focus-within {
+  outline: none;
+}
+
+.tiptap-editor .ProseMirror {
+  outline: none;
+  min-height: 100%;
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--text-1);
+}
+
+/* Placeholder */
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--text-3);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+/* 見出し */
+.tiptap-editor .ProseMirror h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin: 16px 0 4px;
+  line-height: 1.4;
+}
+.tiptap-editor .ProseMirror h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-1);
+  margin: 14px 0 4px;
+}
+.tiptap-editor .ProseMirror h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin: 12px 0 4px;
+}
+
+/* 段落 */
+.tiptap-editor .ProseMirror p {
+  margin: 2px 0;
+}
+
+/* ブロック引用 */
+.tiptap-editor .ProseMirror blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 16px;
+  margin: 8px 0;
+  color: var(--text-2);
+}
+
+/* コード */
+.tiptap-editor .ProseMirror code {
+  background: var(--bg-3);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: 'Consolas', monospace;
+  color: #e879f9;
+}
+
+.tiptap-editor .ProseMirror pre {
+  background: var(--bg-3);
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+
+.tiptap-editor .ProseMirror pre code {
+  background: none;
+  padding: 0;
+  color: var(--text-1);
+}
+
+/* リスト */
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol {
+  padding-left: 20px;
+  margin: 4px 0;
+}
+
+.tiptap-editor .ProseMirror li {
+  margin: 2px 0;
+}
+
+.tiptap-editor .ProseMirror li > p {
+  margin: 0;
+}
+
+/* Workflowy スタイル: ネストされたリスト */
+.tiptap-editor .ProseMirror ul ul,
+.tiptap-editor .ProseMirror ol ol,
+.tiptap-editor .ProseMirror ul ol,
+.tiptap-editor .ProseMirror ol ul {
+  margin: 0;
+}
+
+/* チェックボックス（TaskList） */
+.tiptap-editor .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label {
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > label > input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: var(--text-3);
+}
+
+.tiptap-editor .ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+/* 画像 */
+.tiptap-editor .ProseMirror img {
+  max-width: 100%;
+  border-radius: 6px;
+  margin: 8px 0;
+  cursor: pointer;
+}
+
+.tiptap-editor .ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid var(--accent);
+}
+
+/* 水平線 */
+.tiptap-editor .ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+/* ── ツールバー ── */
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  transition: background .1s, color .1s;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+.toolbar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-1);
+}
+
+.toolbar-btn.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+}
