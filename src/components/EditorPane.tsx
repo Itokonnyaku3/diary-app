@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { Editor } from '@tiptap/react'
-import type { Entry, Mode, Tag } from '../types'
+import type { Entry, Mode, Tag, EntryType } from '../types'
 import { updateEntry, createEntry } from '../api'
 import { format } from 'date-fns'
 import TiptapEditor from './TiptapEditor'
@@ -24,34 +24,29 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditorReady }: Props) {
-  const [title, setTitle]             = useState('')
-  const [content, setContent]         = useState('{}')
-  const [plainText, setPlainText]     = useState('')
-  const [date, setDate]               = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [title, setTitle]               = useState('')
+  const [content, setContent]           = useState('{}')
+  const [date, setDate]                 = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [entryType, setEntryType]       = useState<EntryType>('diary')
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
-  const [saving, setSaving]           = useState(false)
-  const [editorInstance, setEditorInstance] = useState<Editor | null>(null)
+  const [saving, setSaving]             = useState(false)
   const entryIdRef = useRef<number | null>(null)
   const prevEntryId = useRef<number | null>(null)
 
-  // エントリ切替時にフィールドをリセット
   useEffect(() => {
     const newId = isNew ? null : (entry?.id ?? null)
     if (newId === prevEntryId.current) return
     prevEntryId.current = newId
 
     if (isNew) {
-      setTitle('')
-      setContent('{}')
-      setPlainText('')
+      setTitle(''); setContent('{}')
       setDate(format(new Date(), 'yyyy-MM-dd'))
-      setSelectedTagIds([])
+      setEntryType('diary'); setSelectedTagIds([])
       entryIdRef.current = null
     } else if (entry) {
-      setTitle(entry.title)
-      setContent(entry.content)
-      setPlainText('')
-      setDate(entry.date)
+      setTitle(entry.title); setContent(entry.content)
+      setDate(entry.date || format(new Date(), 'yyyy-MM-dd'))
+      setEntryType((entry.entry_type as EntryType) || 'diary')
       setSelectedTagIds(entry.tags.map(t => t.id))
       entryIdRef.current = entry.id
     }
@@ -64,12 +59,17 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
     if (!debouncedTitle && (debouncedContent === '{}' || !debouncedContent)) return
     setSaving(true)
     try {
-      const payload = { title: debouncedTitle, content: debouncedContent, mode, date, tag_ids: selectedTagIds }
+      const payload = {
+        title: debouncedTitle, content: debouncedContent, mode,
+        date: entryType === 'project' ? undefined : date,
+        entry_type: entryType,
+        tag_ids: selectedTagIds,
+      }
       if (entryIdRef.current) {
         const updated = await updateEntry(entryIdRef.current, payload)
         onSaved(updated)
       } else {
-        const created = await createEntry(payload)
+        const created = await createEntry({ ...payload, date: payload.date || '' })
         entryIdRef.current = created.id
         onSaved(created)
       }
@@ -78,51 +78,62 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
     } finally {
       setSaving(false)
     }
-  }, [debouncedTitle, debouncedContent, mode, date, selectedTagIds, onSaved])
+  }, [debouncedTitle, debouncedContent, mode, date, entryType, selectedTagIds, onSaved])
 
   useEffect(() => { save() }, [debouncedTitle, debouncedContent])
-
-  // Tiptap Editor インスタンスを親へ渡す
-  useEffect(() => { onEditorReady(editorInstance) }, [editorInstance, onEditorReady])
 
   const showEmpty = !isNew && !entry
   if (showEmpty) {
     return (
-      <div style={{
-        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: 'var(--text-2)', flexDirection: 'column', gap: 12,
-      }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: 'var(--text-2)', flexDirection: 'column', gap: 12 }}>
         <span style={{ fontSize: 48 }}>📝</span>
-        <p style={{ fontSize: 14 }}>左のサイドバーから日記を選ぶか、「+ 新しい日記」をクリック</p>
-        <p style={{ fontSize: 12, color: 'var(--text-3)' }}>Ctrl+K でコマンドパレットを開けます</p>
+        <p style={{ fontSize: 14 }}>左のサイドバーから選ぶか「+ 新しい日記」をクリック</p>
+        <p style={{ fontSize: 12, color: 'var(--text-3)' }}>Ctrl+K でコマンドパレット</p>
       </div>
     )
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', overflow: 'hidden' }}>
-      {/* ── メタバー（日付・タグ・保存状態） ── */}
-      <div style={{
-        padding: '8px 24px', borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0,
-      }}>
-        <input
-          type="date" value={date} onChange={e => setDate(e.target.value)}
-          style={{
-            background: 'var(--bg-3)', border: '1px solid var(--border)',
-            borderRadius: 6, padding: '4px 8px', fontSize: 13, color: 'var(--text-2)',
-          }}
-        />
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%',
+      background: 'var(--bg)', overflow: 'hidden' }}>
+
+      {/* ── メタバー ── */}
+      <div style={{ padding: '8px 24px', borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
+
+        {/* 日記/プロジェクト切替 */}
+        <div style={{ display: 'flex', background: 'var(--bg-3)', borderRadius: 6, padding: 2 }}>
+          {(['diary', 'project'] as EntryType[]).map(t => (
+            <button key={t} onClick={() => setEntryType(t)} style={{
+              padding: '3px 10px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              background: entryType === t ? 'var(--accent)' : 'transparent',
+              color: entryType === t ? '#fff' : 'var(--text-2)',
+              transition: 'all .15s',
+            }}>
+              {t === 'diary' ? '📅 日記' : '📌 プロジェクト'}
+            </button>
+          ))}
+        </div>
+
+        {/* 日付（日記のみ） */}
+        {entryType === 'diary' && (
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            style={{ background: 'var(--bg-3)', border: '1px solid var(--border)',
+              borderRadius: 6, padding: '4px 8px', fontSize: 13, color: 'var(--text-2)' }} />
+        )}
+
+        {/* タグ */}
         <div style={{ display: 'flex', gap: 4, flex: 1, flexWrap: 'wrap' }}>
           {tags.map(tag => (
             <button key={tag.id} onClick={() => setSelectedTagIds(ids =>
               ids.includes(tag.id) ? ids.filter(i => i !== tag.id) : [...ids, tag.id]
             )} style={{
-              padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 500,
+              padding: '2px 8px', borderRadius: 4, fontSize: 12, fontWeight: 500, cursor: 'pointer',
               background: selectedTagIds.includes(tag.id) ? tag.color + '33' : 'var(--bg-3)',
               color: selectedTagIds.includes(tag.id) ? tag.color : 'var(--text-2)',
               border: `1px solid ${selectedTagIds.includes(tag.id) ? tag.color + '66' : 'var(--border)'}`,
-              transition: 'all .1s', cursor: 'pointer',
+              transition: 'all .1s',
             }}>
               #{tag.name}
             </button>
@@ -134,24 +145,18 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
       </div>
 
       {/* ── タイトル ── */}
-      <input
-        value={title} onChange={e => setTitle(e.target.value)}
-        placeholder="タイトル"
-        style={{
-          padding: '16px 24px 8px', fontSize: 24, fontWeight: 700,
+      <input value={title} onChange={e => setTitle(e.target.value)}
+        placeholder={entryType === 'project' ? 'プロジェクト名' : 'タイトル'}
+        style={{ padding: '16px 24px 8px', fontSize: 24, fontWeight: 700,
           color: 'var(--text-1)', width: '100%',
-          background: 'transparent', border: 'none', outline: 'none', flexShrink: 0,
-        }}
-      />
+          background: 'transparent', border: 'none', outline: 'none', flexShrink: 0 }} />
 
-      {/* ── Tiptap エディタ（ツールバー込み） ── */}
+      {/* ── Tiptap エディタ ── */}
       <TiptapEditor
         key={`${isNew ? 'new' : entry?.id}`}
         content={content}
-        onChange={(json, text) => {
-          setContent(json)
-          setPlainText(text)
-        }}
+        onChange={(json, _text) => setContent(json)}
+        onEditorReady={onEditorReady}
       />
     </div>
   )

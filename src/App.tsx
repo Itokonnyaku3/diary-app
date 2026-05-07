@@ -18,15 +18,16 @@ function loadSettings(): Settings {
 }
 
 export default function App() {
-  const [entries, setEntries]           = useState<Entry[]>([])
-  const [tags, setTags]                 = useState<Tag[]>([])
-  const [selectedId, setSelectedId]     = useState<number | null>(null)
-  const [isNew, setIsNew]               = useState(false)
-  const [mode, setMode]                 = useState<Mode>('private')
-  const [settings, setSettings]         = useState<Settings>(loadSettings)
-  const [showSettings, setShowSettings] = useState(false)
+  const [entries, setEntries]               = useState<Entry[]>([])
+  const [tags, setTags]                     = useState<Tag[]>([])
+  const [selectedId, setSelectedId]         = useState<number | null>(null)
+  const [isNew, setIsNew]                   = useState(false)
+  const [newEntryType, setNewEntryType]     = useState<'diary' | 'project'>('diary')
+  const [mode, setMode]                     = useState<Mode>('private')
+  const [settings, setSettings]             = useState<Settings>(loadSettings)
+  const [showSettings, setShowSettings]     = useState(false)
   const [editorInstance, setEditorInstance] = useState<Editor | null>(null)
-  const [currentText, setCurrentText]   = useState('')
+  const [currentText, setCurrentText]       = useState('')
 
   useEffect(() => {
     localStorage.setItem('diary_api_url', settings.apiUrl)
@@ -54,25 +55,29 @@ export default function App() {
       const idx = prev.findIndex(e => e.id === entry.id)
       if (idx >= 0) {
         const next = [...prev]; next[idx] = entry
-        return next.sort((a, b) => b.date.localeCompare(a.date))
+        return next.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
       }
       return [entry, ...prev]
     })
   }
 
-  function handleNew()              { setIsNew(true); setSelectedId(null) }
-  function handleSelect(id: number) { setIsNew(false); setSelectedId(id) }
-  function handleModeChange(m: Mode){ setMode(m); setSelectedId(null); setIsNew(false) }
+  function handleNew(type: 'diary' | 'project' = 'diary') {
+    setNewEntryType(type); setIsNew(true); setSelectedId(null)
+  }
+  function handleSelect(id: number)  { setIsNew(false); setSelectedId(id) }
+  function handleModeChange(m: Mode) { setMode(m); setSelectedId(null); setIsNew(false) }
 
+  // エディタインスタンスを受け取り、テキスト変化を監視する
   const handleEditorReady = useCallback((editor: Editor | null) => {
     setEditorInstance(editor)
   }, [])
 
-  // Tiptap のテキストをエージェントへ渡す（← ここを修正）
   useEffect(() => {
     if (!editorInstance) return
     const update = () => setCurrentText(editorInstance.getText())
     editorInstance.on('update', update)
+    // 初期テキストも設定
+    setCurrentText(editorInstance.getText())
     return () => { editorInstance.off('update', update) }
   }, [editorInstance])
 
@@ -88,9 +93,7 @@ export default function App() {
         if (entry) {
           const currentTagIds = entry.tags.map(t => t.id)
           if (!currentTagIds.includes(tag.id)) {
-            const updated = await updateEntry(selectedId, {
-              tag_ids: [...currentTagIds, tag.id],
-            })
+            const updated = await updateEntry(selectedId, { tag_ids: [...currentTagIds, tag.id] })
             handleSaved(updated)
           }
         }
@@ -134,7 +137,7 @@ export default function App() {
       <CommandPalette
         editor={editorInstance}
         mode={mode}
-        onNewEntry={handleNew}
+        onNewEntry={() => handleNew('diary')}
         onModeChange={handleModeChange}
         onOpenSettings={() => setShowSettings(true)}
       />

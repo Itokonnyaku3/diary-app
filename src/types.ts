@@ -1,4 +1,5 @@
 export type Mode = 'private' | 'work'
+export type EntryType = 'diary' | 'project'
 
 export interface Tag {
   id: number
@@ -9,9 +10,10 @@ export interface Tag {
 export interface Entry {
   id: number
   title: string
-  content: string  // Tiptap JSON 文字列
+  content: string
   mode: Mode
-  date: string     // YYYY-MM-DD
+  date: string | null
+  entry_type: EntryType
   tags: Tag[]
   created_at: string
   updated_at: string
@@ -26,8 +28,8 @@ export interface Settings {
   apiUrl: string
   privateSystemPrompt: string
   workSystemPrompt: string
-  autoCommentEnabled: boolean   // 自動コメント ON/OFF
-  autoCommentDelay: number      // 自動コメントまでの秒数
+  autoCommentEnabled: boolean
+  autoCommentDelay: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
