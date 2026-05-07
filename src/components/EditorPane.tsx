@@ -10,7 +10,6 @@ interface Props {
   isNew: boolean
   mode: Mode
   tags: Tag[]
-  // wasCreated=true のとき App 側で selectedId を更新する
   onSaved: (entry: Entry, wasCreated: boolean) => void
   onEditorReady: (editor: Editor | null) => void
 }
@@ -25,49 +24,46 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditorReady }: Props) {
-  const [title, setTitle]               = useState('')
-  const [content, setContent]           = useState('{}')
-  const [date, setDate]                 = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [entryType, setEntryType]       = useState<EntryType>('diary')
+  // ── 保存用のstate（TiptapEditorの表示とは切り離す）──────
+  const [saveTitle, setSaveTitle]     = useState('')
+  const [saveContent, setSaveContent] = useState('{}')
+  const [date, setDate]               = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [entryType, setEntryType]     = useState<EntryType>('diary')
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
-  const [saving, setSaving]             = useState(false)
+  const [saving, setSaving]           = useState(false)
 
-  // 保存先エントリIDを管理するref（エントリ切替時に即座に更新）
-  const saveTargetIdRef = useRef<number | null>(null)
+  // 保存先エントリIDのref（切替時に即座に更新）
+  const saveTargetIdRef    = useRef<number | null>(null)
   const saveTargetIsNewRef = useRef(true)
-  // 前回ロードしたエントリIDを追跡（isNew=trueのときはnull）
-  const prevLoadedId = useRef<number | null | 'new'>(undefined as unknown as null)
+  const prevLoadedKeyRef   = useRef<string>('')
 
-  // ── エントリ切替時の初期化 ──────────────────────────────
-  useEffect(() => {
-    const loadId: number | null | 'new' = isNew ? 'new' : (entry?.id ?? null)
-    if (loadId === prevLoadedId.current) return
-    prevLoadedId.current = loadId
-
-    // 保存ターゲットをリセット（これが最重要: 切替前のdebounceが古いターゲットに保存しないように）
-    saveTargetIdRef.current = isNew ? null : (entry?.id ?? null)
+  // ── エントリ切替 → saveTargetを即座に更新し、フォームも初期化 ──
+  const entryKey = isNew ? 'new' : String(entry?.id ?? 'empty')
+  if (entryKey !== prevLoadedKeyRef.current) {
+    // React の render 中に state を更新するパターン（derived state）
+    // この変更は即座に反映され、TiptapEditor は正しい initialContent を受け取る
+    prevLoadedKeyRef.current = entryKey
+    saveTargetIdRef.current    = isNew ? null : (entry?.id ?? null)
     saveTargetIsNewRef.current = isNew
 
-    if (isNew) {
-      setTitle('')
-      setContent('{}')
-      setDate(format(new Date(), 'yyyy-MM-dd'))
-      setEntryType('diary')
-      setSelectedTagIds([])
-    } else if (entry) {
-      setTitle(entry.title)
-      setContent(entry.content || '{}')
-      setDate(entry.date || format(new Date(), 'yyyy-MM-dd'))
-      setEntryType((entry.entry_type as EntryType) || 'diary')
-      setSelectedTagIds(entry.tags.map(t => t.id))
-    }
-  }, [entry?.id, isNew])
+    const newTitle   = isNew ? '' : (entry?.title ?? '')
+    const newContent = isNew ? '{}' : (entry?.content ?? '{}')
+    const newDate    = isNew ? format(new Date(), 'yyyy-MM-dd') : (entry?.date ?? format(new Date(), 'yyyy-MM-dd'))
+    const newType    = isNew ? 'diary' : ((entry?.entry_type ?? 'diary') as EntryType)
+    const newTagIds  = isNew ? [] : (entry?.tags.map(t => t.id) ?? [])
 
-  const debouncedTitle   = useDebounce(title, 800)
-  const debouncedContent = useDebounce(content, 800)
+    if (saveTitle   !== newTitle)   setSaveTitle(newTitle)
+    if (saveContent !== newContent) setSaveContent(newContent)
+    if (date        !== newDate)    setDate(newDate)
+    if (entryType   !== newType)    setEntryType(newType)
+    // tagIds は配列なので常に更新
+    setSelectedTagIds(newTagIds)
+  }
 
-  // ── 保存処理 ───────────────────────────────────────────
-  // debouncedTitle/Content が更新された時点のターゲットIDを保存に使う
+  const debouncedTitle   = useDebounce(saveTitle, 800)
+  const debouncedContent = useDebounce(saveContent, 800)
+
+  // ── 保存（保存先IDは debounce 発火時点でキャプチャ）──────
   const save = useCallback(async (
     targetId: number | null,
     targetIsNew: boolean,
@@ -84,18 +80,16 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
         tag_ids: selectedTagIds,
       }
       if (!targetIsNew && targetId !== null) {
-        // 既存エントリの更新
         const updated = await updateEntry(targetId, payload)
-        // selectedId は変えない（更新なので）
         onSaved(updated, false)
-      } else if (targetIsNew && saveTargetIdRef.current === null) {
-        // 新規作成（まだIDが発行されていない場合のみ）
-        const created = await createEntry({ ...payload, date: payload.date || '' })
-        saveTargetIdRef.current = created.id
+      } else if (saveTargetIdRef.current === null) {
+        // まだIDが発行されていない → 新規作成
+        const created = await createEntry({ ...payload, date: payload.date || format(new Date(), 'yyyy-MM-dd') })
+        saveTargetIdRef.current    = created.id
         saveTargetIsNewRef.current = false
-        onSaved(created, true)  // wasCreated=true → App側でselectedIdを更新
-      } else if (targetIsNew && saveTargetIdRef.current !== null) {
-        // 新規エントリが初回保存済み → 以降は update
+        onSaved(created, true)
+      } else {
+        // 一度作成済みの新規エントリ → update
         const updated = await updateEntry(saveTargetIdRef.current, payload)
         onSaved(updated, false)
       }
@@ -106,17 +100,15 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
     }
   }, [mode, date, entryType, selectedTagIds, onSaved])
 
-  // debounce発火時点のターゲットIDをキャプチャして save に渡す
   useEffect(() => {
-    // debouncedTitle/Content が変化した瞬間のターゲットIDを使う
-    const capturedId    = saveTargetIdRef.current
-    const capturedIsNew = saveTargetIsNewRef.current
-    save(capturedId, capturedIsNew, debouncedTitle, debouncedContent)
+    const id    = saveTargetIdRef.current
+    const isNow = saveTargetIsNewRef.current
+    save(id, isNow, debouncedTitle, debouncedContent)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedTitle, debouncedContent])
 
-  const showEmpty = !isNew && !entry
-  if (showEmpty) {
+  // ── 空の状態 ──────────────────────────────────────────
+  if (!isNew && !entry) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: 'var(--text-2)', flexDirection: 'column', gap: 12 }}>
@@ -127,6 +119,10 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
     )
   }
 
+  // TiptapEditor に渡す initialContent は entry props から直接算出する
+  // （state 経由にしないことで、remount 時に正しいコンテンツが渡る）
+  const editorInitialContent = isNew ? '{}' : (entry?.content ?? '{}')
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%',
       background: 'var(--bg)', overflow: 'hidden' }}>
@@ -135,28 +131,22 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
       <div style={{ padding: '8px 24px', borderBottom: '1px solid var(--border)',
         display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
 
-        {/* 日記/プロジェクト切替 */}
         <div style={{ display: 'flex', background: 'var(--bg-3)', borderRadius: 6, padding: 2 }}>
           {(['diary', 'project'] as EntryType[]).map(t => (
             <button key={t} onClick={() => setEntryType(t)} style={{
               padding: '3px 10px', borderRadius: 4, fontSize: 12, fontWeight: 600, cursor: 'pointer',
               background: entryType === t ? 'var(--accent)' : 'transparent',
-              color: entryType === t ? '#fff' : 'var(--text-2)',
-              transition: 'all .15s',
-            }}>
-              {t === 'diary' ? '📅 日記' : '📌 プロジェクト'}
-            </button>
+              color: entryType === t ? '#fff' : 'var(--text-2)', transition: 'all .15s',
+            }}>{t === 'diary' ? '📅 日記' : '📌 プロジェクト'}</button>
           ))}
         </div>
 
-        {/* 日付（日記のみ） */}
         {entryType === 'diary' && (
           <input type="date" value={date} onChange={e => setDate(e.target.value)}
             style={{ background: 'var(--bg-3)', border: '1px solid var(--border)',
               borderRadius: 6, padding: '4px 8px', fontSize: 13, color: 'var(--text-2)' }} />
         )}
 
-        {/* タグ */}
         <div style={{ display: 'flex', gap: 4, flex: 1, flexWrap: 'wrap' }}>
           {tags.map(tag => (
             <button key={tag.id} onClick={() => setSelectedTagIds(ids =>
@@ -176,17 +166,22 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
       </div>
 
       {/* ── タイトル ── */}
-      <input value={title} onChange={e => setTitle(e.target.value)}
+      <input
+        value={saveTitle}
+        onChange={e => setSaveTitle(e.target.value)}
         placeholder={entryType === 'project' ? 'プロジェクト名' : 'タイトル'}
         style={{ padding: '16px 24px 8px', fontSize: 24, fontWeight: 700,
           color: 'var(--text-1)', width: '100%',
-          background: 'transparent', border: 'none', outline: 'none', flexShrink: 0 }} />
+          background: 'transparent', border: 'none', outline: 'none', flexShrink: 0 }}
+      />
 
-      {/* ── Tiptap エディタ ── */}
+      {/* ── Tiptap エディタ ──
+          key が変わると remount。initialContent は entry props から直接渡すので
+          常に正しいエントリのコンテンツで初期化される。 */}
       <TiptapEditor
-        key={isNew ? 'new' : String(entry?.id ?? 'empty')}
-        content={content}
-        onChange={(json, _text) => setContent(json)}
+        key={entryKey}
+        initialContent={editorInitialContent}
+        onChange={(json, _text) => setSaveContent(json)}
         onEditorReady={onEditorReady}
       />
     </div>
