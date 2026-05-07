@@ -1,0 +1,4 @@
+cd C:\Users\gobou\OneDrive\アプリ\DiaryApp\diary-app
+git add .
+git commit -m "fix cors"
+git push
