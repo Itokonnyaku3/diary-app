@@ -52,39 +52,52 @@ export default function AgentPane({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // loading の最新値を ref で保持（タイマー依存配列に入れずに済む）
+  const loadingRef = useRef(loading)
+  useEffect(() => { loadingRef.current = loading }, [loading])
+
+  // sendMessage の最新版を ref で保持（stale closure 防止）
+  const sendMessageRef = useRef(sendMessage)
+  useEffect(() => { sendMessageRef.current = sendMessage }, [sendMessage])
+
   // ── 自動コメントタイマー ─────────────────────────────
   useEffect(() => {
     if (!autoCommentEnabled) return
-    if (loading) return
     if (currentEntryText.length < 80) return           // 短すぎるときは無視
     if (currentEntryText === lastAutoText.current) return // 内容が変わっていない
 
-    // 前のタイマーをリセット
+    // 前のタイマーをクリア
     if (timerRef.current) clearTimeout(timerRef.current)
     if (countRef.current) clearInterval(countRef.current)
     setAutoCountdown(autoCommentDelay)
 
-    // カウントダウン表示
-    let remaining = autoCommentDelay
+    // カウントダウン表示（関数型更新で常に最新値から -1 する）
     countRef.current = setInterval(() => {
-      remaining -= 1
-      setAutoCountdown(remaining)
-      if (remaining <= 0 && countRef.current) clearInterval(countRef.current)
+      setAutoCountdown(prev => {
+        if (prev === null || prev <= 1) {
+          if (countRef.current) clearInterval(countRef.current)
+          return null
+        }
+        return prev - 1
+      })
     }, 1000)
 
-    // 本体タイマー
+    // 本体タイマー（loading は ref で確認 → loading が依存配列に不要）
     timerRef.current = setTimeout(() => {
       setAutoCountdown(null)
+      if (countRef.current) clearInterval(countRef.current)
+      if (loadingRef.current) return   // 応答中なら今回はスキップ
       lastAutoText.current = currentEntryText
-      sendMessage(AUTO_PROMPT, true)
+      sendMessageRef.current(AUTO_PROMPT, true)
     }, autoCommentDelay * 1000)
 
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-      if (countRef.current) clearInterval(countRef.current)
+      if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null }
+      if (countRef.current) { clearInterval(countRef.current); countRef.current = null }
+      setAutoCountdown(null)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentEntryText, autoCommentEnabled, autoCommentDelay, loading])
+  // loading を外すことで「エージェント応答中」にカウントがリセットされなくなる
+  }, [currentEntryText, autoCommentEnabled, autoCommentDelay])
 
   // ── メッセージ送信 ───────────────────────────────────
   const sendMessage = useCallback(async (text: string, isAuto = false) => {

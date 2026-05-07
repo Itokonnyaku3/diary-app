@@ -48,9 +48,8 @@ export default function App() {
 
   const selectedEntry = isNew ? null : (entries.find(e => e.id === selectedId) ?? null)
 
-  function handleSaved(entry: Entry) {
-    setIsNew(false)
-    setSelectedId(entry.id)
+  function handleSaved(entry: Entry, wasCreated: boolean) {
+    // エントリ一覧を更新
     setEntries(prev => {
       const idx = prev.findIndex(e => e.id === entry.id)
       if (idx >= 0) {
@@ -59,6 +58,13 @@ export default function App() {
       }
       return [entry, ...prev]
     })
+    // selectedId の更新は「新規作成の初回保存」のときだけ行う
+    // 更新保存のときに setSelectedId を呼ぶと、ユーザーが別エントリに
+    // 切り替えた後でも元のエントリに戻ってしまうバグを防ぐ
+    if (wasCreated && isNew && selectedId === null) {
+      setIsNew(false)
+      setSelectedId(entry.id)
+    }
   }
 
   function handleNew(type: 'diary' | 'project' = 'diary') {
