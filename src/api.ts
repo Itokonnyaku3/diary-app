@@ -1,7 +1,9 @@
 import type { Entry, Tag, ChatMessage, Mode } from './types'
 
+// 末尾スラッシュを除去して返す
 export function getApiUrl(): string {
-  return localStorage.getItem('diary_api_url') || 'http://localhost:8000'
+  const url = localStorage.getItem('diary_api_url') || 'http://localhost:8000'
+  return url.replace(/\/+$/, '')
 }
 
 // ─── 日記 CRUD ─────────────────────────────────────────
