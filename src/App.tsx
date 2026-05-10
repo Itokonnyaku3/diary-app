@@ -22,7 +22,6 @@ export default function App() {
   const [tags, setTags]                     = useState<Tag[]>([])
   const [selectedId, setSelectedId]         = useState<number | null>(null)
   const [isNew, setIsNew]                   = useState(false)
-  const [newEntryType, setNewEntryType]     = useState<'diary' | 'project'>('diary')
   const [mode, setMode]                     = useState<Mode>('private')
   const [settings, setSettings]             = useState<Settings>(loadSettings)
   const [showSettings, setShowSettings]     = useState(false)
@@ -67,8 +66,8 @@ export default function App() {
     }
   }
 
-  function handleNew(type: 'diary' | 'project' = 'diary') {
-    setNewEntryType(type); setIsNew(true); setSelectedId(null)
+  function handleNew(_type: 'diary' | 'project' = 'diary') {
+    setIsNew(true); setSelectedId(null)
   }
   function handleSelect(id: number)  { setIsNew(false); setSelectedId(id) }
   function handleModeChange(m: Mode) { setMode(m); setSelectedId(null); setIsNew(false) }
@@ -100,7 +99,7 @@ export default function App() {
           const currentTagIds = entry.tags.map(t => t.id)
           if (!currentTagIds.includes(tag.id)) {
             const updated = await updateEntry(selectedId, { tag_ids: [...currentTagIds, tag.id] })
-            handleSaved(updated)
+            handleSaved(updated, false)
           }
         }
       }
