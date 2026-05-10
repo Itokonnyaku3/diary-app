@@ -3,6 +3,8 @@ import type { Entry, Mode } from '../types'
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
+const APP_VERSION = 'v1.6'
+
 interface Props {
   entries: Entry[]
   selectedId: number | null
@@ -38,7 +40,8 @@ export default function Sidebar({
       <div style={{ padding: '12px 12px 8px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
           <span style={{ fontSize: 18 }}>📓</span>
-          <span style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>Diary</span>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>Diary</span>
+          <span style={{ fontSize: 10, color: 'var(--text-3)', marginLeft: 4, marginRight: 'auto' }}>{APP_VERSION}</span>
           <button onClick={onSettingsOpen} title="設定"
             style={{ color: 'var(--text-2)', fontSize: 16, padding: '2px 4px', cursor: 'pointer' }}>⚙</button>
         </div>

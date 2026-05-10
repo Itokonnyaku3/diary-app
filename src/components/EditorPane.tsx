@@ -8,6 +8,7 @@ import TiptapEditor from './TiptapEditor'
 interface Props {
   entry: Entry | null
   isNew: boolean
+  initialEntryType: EntryType  // + 日記 or + プロジェクト で決まる初期タイプ
   mode: Mode
   tags: Tag[]
   onSaved: (entry: Entry, wasCreated: boolean) => void
@@ -23,7 +24,7 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced
 }
 
-export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditorReady }: Props) {
+export default function EditorPane({ entry, isNew, initialEntryType, mode, tags, onSaved, onEditorReady }: Props) {
   // ── 保存用のstate（TiptapEditorの表示とは切り離す）──────
   const [saveTitle, setSaveTitle]     = useState('')
   const [saveContent, setSaveContent] = useState('{}')
@@ -38,10 +39,10 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
   const prevLoadedKeyRef   = useRef<string>('')
 
   // ── エントリ切替 → saveTargetを即座に更新し、フォームも初期化 ──
-  const entryKey = isNew ? 'new' : String(entry?.id ?? 'empty')
+  // isNew 時は initialEntryType もキーに含めることで、
+  // + 日記 → + プロジェクト のような切替も正しくリセットされる
+  const entryKey = isNew ? `new-${initialEntryType}` : String(entry?.id ?? 'empty')
   if (entryKey !== prevLoadedKeyRef.current) {
-    // React の render 中に state を更新するパターン（derived state）
-    // この変更は即座に反映され、TiptapEditor は正しい initialContent を受け取る
     prevLoadedKeyRef.current = entryKey
     saveTargetIdRef.current    = isNew ? null : (entry?.id ?? null)
     saveTargetIsNewRef.current = isNew
@@ -49,7 +50,7 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
     const newTitle   = isNew ? '' : (entry?.title ?? '')
     const newContent = isNew ? '{}' : (entry?.content ?? '{}')
     const newDate    = isNew ? format(new Date(), 'yyyy-MM-dd') : (entry?.date ?? format(new Date(), 'yyyy-MM-dd'))
-    const newType    = isNew ? 'diary' : ((entry?.entry_type ?? 'diary') as EntryType)
+    const newType    = isNew ? initialEntryType : ((entry?.entry_type ?? 'diary') as EntryType)
     const newTagIds  = isNew ? [] : (entry?.tags.map(t => t.id) ?? [])
 
     if (saveTitle   !== newTitle)   setSaveTitle(newTitle)
@@ -183,7 +184,7 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
           key が変わると remount。initialContent は entry props から直接渡すので
           常に正しいエントリのコンテンツで初期化される。 */}
       <TiptapEditor
-        key={entryKey}
+        key={entryKey}   {/* entryKey が変わると remount → 正しいコンテンツで初期化 */}
         initialContent={editorInitialContent}
         onChange={(json, _text) => setSaveContent(json)}
         onEditorReady={onEditorReady}
