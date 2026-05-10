@@ -30,7 +30,7 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
   const [date, setDate]               = useState(format(new Date(), 'yyyy-MM-dd'))
   const [entryType, setEntryType]     = useState<EntryType>('diary')
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
-  const [saving, setSaving]           = useState(false)
+  const [saveStatus, setSaveStatus]   = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
 
   // 保存先エントリIDのref（切替時に即座に更新）
   const saveTargetIdRef    = useRef<number | null>(null)
@@ -71,7 +71,7 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
     c: string,
   ) => {
     if (!t && (c === '{}' || !c)) return
-    setSaving(true)
+    setSaveStatus('saving')
     try {
       const payload = {
         title: t, content: c, mode,
@@ -83,20 +83,18 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
         const updated = await updateEntry(targetId, payload)
         onSaved(updated, false)
       } else if (saveTargetIdRef.current === null) {
-        // まだIDが発行されていない → 新規作成
         const created = await createEntry({ ...payload, date: payload.date || format(new Date(), 'yyyy-MM-dd') })
         saveTargetIdRef.current    = created.id
         saveTargetIsNewRef.current = false
         onSaved(created, true)
       } else {
-        // 一度作成済みの新規エントリ → update
         const updated = await updateEntry(saveTargetIdRef.current, payload)
         onSaved(updated, false)
       }
+      setSaveStatus('saved')
     } catch (e) {
       console.error('Save error:', e)
-    } finally {
-      setSaving(false)
+      setSaveStatus('error')
     }
   }, [mode, date, entryType, selectedTagIds, onSaved])
 
@@ -160,8 +158,14 @@ export default function EditorPane({ entry, isNew, mode, tags, onSaved, onEditor
             }}>#{tag.name}</button>
           ))}
         </div>
-        <span style={{ fontSize: 11, color: 'var(--text-3)', flexShrink: 0 }}>
-          {saving ? '保存中…' : '✓ 保存済み'}
+        <span style={{
+          fontSize: 11, flexShrink: 0,
+          color: saveStatus === 'error' ? 'var(--danger)' : saveStatus === 'saved' ? 'var(--success)' : 'var(--text-3)',
+        }}>
+          {saveStatus === 'saving' ? '保存中…'
+            : saveStatus === 'saved' ? '✓ 保存済み'
+            : saveStatus === 'error' ? '⚠ 保存失敗（サーバー未接続）'
+            : ''}
         </span>
       </div>
 
